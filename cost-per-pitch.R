@@ -17,6 +17,7 @@ parse_stattle <- function(stattle_list, entry) {
 ## some constants
 SPORT = "baseball"
 LEAGUE = "mlb"
+SEASON = "mlb-2015"
 
 ## get the teams
 teams_raw <- ss_get_result(sport=SPORT, league=LEAGUE, ep = "teams", walk=TRUE)
@@ -36,7 +37,7 @@ for (TEAM in teams$slug) {
   tmp_raw <- ss_get_result(sport=SPORT, 
                            league=LEAGUE, 
                            ep="players", 
-                           query = list(team_id = TEAM), 
+                           query = list(team_id = TEAM, season_id=SEASON), 
                            walk=TRUE)
   tmp_players <- parse_stattle(tmp_raw, "players") 
   ## get just the pitchers with salary
@@ -59,7 +60,8 @@ for (PLAYER in pitchers$slug) {
                            query = list(player_id = PLAYER,
                                         interval_type = "regularseason",
                                         type = "baseball_pitcher_stat",
-                                        stat = "pitches_thrown"))
+                                        stat = "pitches_thrown",
+                                        season_id = SEASON))
   ## parse out the data
   tmp_stat <- tmp_raw[[1]]$total_player_stat$total
   ## make a data frame
@@ -71,5 +73,22 @@ for (PLAYER in pitchers$slug) {
 }
 
 
-## 
+## join the data
+pitchers <- left_join(pitchers, p_stats)
+
+## keep just those with pitches
+pitchers_clean = filter(pitchers, pitches > 0  & salary > 0)
+
+## add the cost per pitch
+pitchers_clean = transform(pitchers_clean, cpp = salary / pitches)
+
+## sort
+pitchers_clean = arrange(pitchers_clean, desc(cpp))
+
+## the data
+pitchers_df = select(pitchers_clean, name, team_slug, position_abbreviation, salary, pitches, cpp)
+head(pitchers_df, 25)
+
+save(pitchers_df, pitchers_clean, pitchers, p_stats, file="datasets.Rdata")
+
 
